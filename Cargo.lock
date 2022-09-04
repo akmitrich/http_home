@@ -576,8 +576,10 @@ name = "http_home"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "querystring",
  "reqwest",
  "serde",
+ "thiserror",
  "tokio",
 ]
 
@@ -941,6 +943,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "querystring"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9318ead08c799aad12a55a3e78b82e0b6167271ffd1f627b758891282f739187"
+
+[[package]]
 name = "quote"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1222,6 +1230,26 @@ dependencies = [
  "redox_syscall",
  "remove_dir_all",
  "winapi",
+]
+
+[[package]]
+name = "thiserror"
+version = "1.0.33"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d0a539a918745651435ac7db7a18761589a94cd7e94cd56999f828bf73c8a57"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.33"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c251e90f708e16c49a16f4917dc2131e75222b72edfa9cb7f7c58ae56aae0c09"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

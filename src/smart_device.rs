@@ -1,6 +1,6 @@
 #![allow(unused, dead_code)]
 
-use std::fmt::format;
+use std::{collections::HashMap, fmt::format};
 
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
@@ -26,6 +26,10 @@ pub trait DeviceInfo {
     fn device_info(&self) -> Vec<String>;
 }
 
+pub trait DeviceDict {
+    fn device_dict(&self) -> HashMap<String, String>;
+}
+
 impl Device {
     pub fn new_socket() -> Self {
         Device::Socket(Socket::new(220_f64, 0_f64, false))
@@ -47,6 +51,34 @@ impl DeviceInfo for Device {
             Device::Thermometer(t) => t.device_info(),
             _ => vec![String::from("Unknown device.")],
         }
+    }
+}
+
+impl DeviceDict for Device {
+    fn device_dict(&self) -> HashMap<String, String> {
+        let mut result = HashMap::new();
+        match self {
+            Device::Socket(socket) => {
+                result.insert(String::from("device"), String::from("socket"));
+                result.insert(
+                    String::from("state"),
+                    String::from(if socket.is_on() { "on" } else { "off" }),
+                );
+                result.insert(String::from("current"), socket.get_current().to_string());
+                result.insert(String::from("voltage"), socket.get_voltage().to_string());
+            }
+            Device::Thermometer(thermometer) => {
+                result.insert(String::from("device"), String::from("thermometer"));
+                result.insert(
+                    String::from("temperature"),
+                    thermometer.get_temperature().to_string(),
+                );
+            }
+            _ => {
+                result.insert("device".into(), "unknown".into());
+            }
+        }
+        result
     }
 }
 
