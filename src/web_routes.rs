@@ -1,10 +1,10 @@
+use crate::smart_device::{Device, DeviceDict, Socket, Thermometer};
+use crate::SmartHome;
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use querystring::querify;
 use std::collections::HashMap;
 use std::num::ParseFloatError;
 use thiserror::Error;
-use crate::smart_device::{Device, Socket, Thermometer, DeviceDict};
-use crate::SmartHome;
 
 #[derive(Debug, Error)]
 pub enum HandleRequestError {
@@ -20,7 +20,10 @@ type HandleRequestResult<T> = Result<T, HandleRequestError>;
 
 pub async fn greet(_: HttpRequest, home: web::Data<SmartHome>) -> impl Responder {
     let home = home.read().await;
-    format!("Otus Smart Home Server is here.\n Home name is {}", home.get_name())
+    format!(
+        "Otus Smart Home Server is here.\n Home name is {}",
+        home.get_name()
+    )
 }
 
 pub async fn health_check(_: HttpRequest) -> impl Responder {
@@ -47,9 +50,13 @@ pub async fn add_room(req: HttpRequest, home: web::Data<SmartHome>) -> HttpRespo
         let mut home = home.write().await;
         match home.add_room(room_name) {
             Some(_) => HttpResponse::Ok().finish(),
-            None => HttpResponse::BadRequest().body(format!("Cannot add room '{}' because it already exists.", room_name)),
+            None => HttpResponse::BadRequest().body(format!(
+                "Cannot add room '{}' because it already exists.",
+                room_name
+            )),
         }
-    } else { // this code must be unreachable 
+    } else {
+        // this code must be unreachable
         HttpResponse::InternalServerError().body(format!("Unexpected request: '{:#?}'", req))
     }
 }
@@ -61,18 +68,23 @@ pub async fn add_device(req: HttpRequest, home: web::Data<SmartHome>) -> HttpRes
         let query_string = req.query_string();
         let data: HashMap<_, _> = querify(query_string).into_iter().collect();
         match create_device_from(data) {
-            Ok(new_device) => {
-                match home.add_device(room_name, device_name, new_device) {
-                    Some(_) => HttpResponse::Ok().finish(),
-                    None => HttpResponse::BadRequest().body(format!("Room not found '{}' or duplicate device '{}'.", room_name, device_name)),
-                }
-            }
+            Ok(new_device) => match home.add_device(room_name, device_name, new_device) {
+                Some(_) => HttpResponse::Ok().finish(),
+                None => HttpResponse::BadRequest().body(format!(
+                    "Room not found '{}' or duplicate device '{}'.",
+                    room_name, device_name
+                )),
+            },
             Err(e) => match e {
-                HandleRequestError::BadDeviceDict(_) | HandleRequestError::ParseFloatError(_) => HttpResponse::BadRequest().body(format!("{}", e)),
-                _ => HttpResponse::InternalServerError().body(format!("Unexpected request: '{:#?}'", req)),
-            }
+                HandleRequestError::BadDeviceDict(_) | HandleRequestError::ParseFloatError(_) => {
+                    HttpResponse::BadRequest().body(format!("{}", e))
+                }
+                _ => HttpResponse::InternalServerError()
+                    .body(format!("Unexpected request: '{:#?}'", req)),
+            },
         }
-    } else { // this code must be unreachable 
+    } else {
+        // this code must be unreachable
         HttpResponse::InternalServerError().body(format!("Unexpected request: '{:#?}'", req))
     }
 }
@@ -83,7 +95,9 @@ pub async fn remove_device(req: HttpRequest, home: web::Data<SmartHome>) -> Http
     let mut home = home.write().await;
     match home.remove_device(room_name, device_name) {
         Some(device) => HttpResponse::Ok().json(device.device_dict()),
-        None => HttpResponse::BadRequest().body(format!("Device not found for room/device '{room_name}/{device_name}'.")),
+        None => HttpResponse::BadRequest().body(format!(
+            "Device not found for room/device '{room_name}/{device_name}'."
+        )),
     }
 }
 
@@ -105,6 +119,11 @@ pub async fn update(req: HttpRequest, home: web::Data<SmartHome>) -> HttpRespons
         Ok(_) => HttpResponse::Ok().finish(),
         Err(e) => HttpResponse::BadRequest().body(format!("{}", e)),
     }
+}
+
+pub async fn report(_: HttpRequest, home: web::Data<SmartHome>) -> HttpResponse {
+    let home = home.read().await;
+    HttpResponse::Ok().body(home.report())
 }
 
 async fn update_device(
@@ -158,30 +177,38 @@ async fn update_device(
 }
 
 fn create_device_from(data: HashMap<&str, &str>) -> HandleRequestResult<Device> {
-    let device_string = data.get("device").ok_or_else( || bad_device_dict_error(&data))?;
+    let device_string = data
+        .get("device")
+        .ok_or_else(|| bad_device_dict_error(&data))?;
     match device_string.to_lowercase().as_str() {
         "socket" => {
-            let state = data.get("state").ok_or_else(|| bad_device_dict_error(&data))?;
+            let state = data
+                .get("state")
+                .ok_or_else(|| bad_device_dict_error(&data))?;
             let on = match state.to_lowercase().as_str() {
                 "on" | "вкл" => Some(true),
                 "off" | "выкл" => Some(false),
                 _ => None,
-            }.ok_or_else(|| bad_device_dict_error(&data))?;
-            let voltage = data.get("voltage")
+            }
+            .ok_or_else(|| bad_device_dict_error(&data))?;
+            let voltage = data
+                .get("voltage")
                 .ok_or_else(|| bad_device_dict_error(&data))?
                 .parse::<f64>()?;
-            let current = data.get("current")
+            let current = data
+                .get("current")
                 .ok_or_else(|| bad_device_dict_error(&data))?
                 .parse::<f64>()?;
             Ok(Device::Socket(Socket::new(voltage, current, on)))
         }
         "thermometer" => {
-            let temperature = data.get("temperature")
+            let temperature = data
+                .get("temperature")
                 .ok_or_else(|| bad_device_dict_error(&data))?
                 .parse::<f64>()?;
             Ok(Device::Thermometer(Thermometer::new(temperature)))
         }
-        _ => Err(bad_device_dict_error(&data))
+        _ => Err(bad_device_dict_error(&data)),
     }
 }
 

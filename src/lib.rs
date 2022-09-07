@@ -17,13 +17,28 @@ pub fn run(listener: TcpListener, home: home::Home) -> std::io::Result<Server> {
             .route("/", web::get().to(web_routes::greet))
             .route("/health_check", web::get().to(web_routes::health_check))
             .route("/room_list", web::get().to(web_routes::room_list))
-            .route("/device_list/{room_name}", web::get().to(web_routes::device_list))
+            .route(
+                "/device_list/{room_name}",
+                web::get().to(web_routes::device_list),
+            )
             .route("add_room/{room_name}", web::post().to(web_routes::add_room))
-            .route("add_device/{room_name}/{device_name}", web::post().to(web_routes::add_device))
-            .route("/remove_device/{room_name}/{device_name}", web::post().to(web_routes::remove_device))
-            .route("remove_room/{room_name}", web::post().to(web_routes::remove_room))
-            .route("/update/{room_name}/{device_name}", web::post().to(web_routes::update))
-            .route("/{name}", web::get().to(web_routes::greet))
+            .route(
+                "add_device/{room_name}/{device_name}",
+                web::post().to(web_routes::add_device),
+            )
+            .route(
+                "/remove_device/{room_name}/{device_name}",
+                web::post().to(web_routes::remove_device),
+            )
+            .route(
+                "remove_room/{room_name}",
+                web::post().to(web_routes::remove_room),
+            )
+            .route(
+                "/update/{room_name}/{device_name}",
+                web::post().to(web_routes::update),
+            )
+            .route("/report", web::get().to(web_routes::report))
             .app_data(web::Data::clone(&smart_home))
     })
     .listen(listener)?

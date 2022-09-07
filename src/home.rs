@@ -1,4 +1,4 @@
-use crate::smart_device::{Device, DeviceInfo};
+use crate::smart_device::{Device, DeviceDict};
 use crate::smart_room::Room;
 use std::collections::{hash_map::Entry, HashMap};
 
@@ -89,7 +89,7 @@ impl Home {
             lines.push(format!("\tIn room '{}'", room_name));
             let room = self.get_room_by_name(room_name).unwrap();
             for device in room.device_list() {
-                lines.push(format!("\t\t{:?}", device.device_info()));
+                lines.push(format!("\t\t{:?}", device.device_dict()));
             }
         }
         lines.join("\n")
