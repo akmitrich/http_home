@@ -3,7 +3,7 @@ use querystring::querify;
 use std::collections::HashMap;
 use std::num::ParseFloatError;
 use thiserror::Error;
-use crate::smart_device::Device;
+use crate::smart_device::{Device, Socket, Thermometer};
 use crate::SmartHome;
 
 #[derive(Debug, Error)]
@@ -42,19 +42,49 @@ pub async fn device_list(req: HttpRequest, home: web::Data<SmartHome>) -> HttpRe
     }
 }
 
+pub async fn add_room(req: HttpRequest, home: web::Data<SmartHome>) -> HttpResponse {
+    if let Some(room_name) = req.match_info().get("room_name") {
+        let mut home = home.write().await;
+        match home.add_room(room_name) {
+            Some(_) => HttpResponse::Ok().finish(),
+            None => HttpResponse::BadRequest().body(format!("Cannot add room '{}' because it already exists.", room_name)),
+        }
+    } else { // this code must be unreachable 
+        HttpResponse::InternalServerError().body(format!("Unexpected request: '{:#?}'", req))
+    }
+}
+
+pub async fn add_device(req: HttpRequest, home: web::Data<SmartHome>) -> HttpResponse {
+    let room_name = req.match_info().get("room_name").unwrap_or_default();
+    if let Some(device_name) = req.match_info().get("device_name") {
+        let mut home = home.write().await;
+        let query_string = req.query_string();
+        let data: HashMap<_, _> = querify(query_string).into_iter().collect();
+        match create_device_from(data) {
+            Ok(new_device) => {
+                match home.add_device(room_name, device_name, new_device) {
+                    Some(_) => HttpResponse::Ok().finish(),
+                    None => HttpResponse::BadRequest().body(format!("Room not found '{}'", room_name)),
+                }
+            }
+            Err(e) => match e {
+                HandleRequestError::BadDeviceDict(_) | HandleRequestError::ParseFloatError(_) => HttpResponse::BadRequest().body(format!("{}", e)),
+                _ => HttpResponse::InternalServerError().body(format!("Unexpected request: '{:#?}'", req)),
+            }
+        }
+    } else { // this code must be unreachable 
+        HttpResponse::InternalServerError().body(format!("Unexpected request: '{:#?}'", req))
+    }
+}
+
 pub async fn update(req: HttpRequest, home: web::Data<SmartHome>) -> HttpResponse {
     let room_name = dbg!(req.match_info().get("room_name").unwrap_or_default());
     let device_name = dbg!(req.match_info().get("device_name").unwrap_or_default());
-    let info = req.query_string();
-    let data: HashMap<_, _> = querify(info).into_iter().collect();
+    let query_string = req.query_string();
+    let data: HashMap<_, _> = querify(query_string).into_iter().collect();
     match dbg!(update_device(home, room_name, device_name, data).await) {
         Ok(_) => HttpResponse::Ok().finish(),
-        Err(e) => match e {
-            HandleRequestError::DeviceNotFound(_) => HttpResponse::BadRequest().body(format!("{}", e)),
-            HandleRequestError::BadDeviceDict(_) => HttpResponse::BadRequest().body(format!("{}", e)),
-            HandleRequestError::ParseFloatError(_) => HttpResponse::BadRequest().body(format!("{}", e)),
-//            _ => HttpResponse::InternalServerError().body(format!("{}", e)),
-        }
+        Err(e) => HttpResponse::BadRequest().body(format!("{}", e)),
     }
 }
 
@@ -81,7 +111,7 @@ async fn update_device(
                     match state.to_lowercase().as_str() {
                         "on" | "вкл" => socket.switch(true),
                         "off" | "выкл" => socket.switch(false),
-                        _ => return Err(HandleRequestError::BadDeviceDict(format!("{:#?}", data))),
+                        _ => return Err(bad_device_dict_error(&data)),
                     }
                 }
                 if let Some(current) = data.get("current") {
@@ -91,7 +121,7 @@ async fn update_device(
                     socket.set_voltage(voltage.parse()?);
                 }
             } else {
-                return Err(HandleRequestError::BadDeviceDict(format!("{:#?}", data)));
+                return Err(bad_device_dict_error(&data));
             }
         }
         Device::Thermometer(thermometer) => {
@@ -100,10 +130,42 @@ async fn update_device(
                     thermometer.set_temperature(temperature.parse()?);
                 }
             } else {
-                return Err(HandleRequestError::BadDeviceDict(format!("{:#?}", data)));
+                return Err(bad_device_dict_error(&data));
             }
         }
         _ => todo!(),
     }
     Ok(())
+}
+
+fn create_device_from(data: HashMap<&str, &str>) -> HandleRequestResult<Device> {
+    let device_string = data.get("device").ok_or_else( || bad_device_dict_error(&data))?;
+    match device_string.to_lowercase().as_str() {
+        "socket" => {
+            let state = data.get("state").ok_or_else(|| bad_device_dict_error(&data))?;
+            let on = match state.to_lowercase().as_str() {
+                "on" | "вкл" => Some(true),
+                "off" | "выкл" => Some(false),
+                _ => None,
+            }.ok_or_else(|| bad_device_dict_error(&data))?;
+            let voltage = data.get("voltage")
+                .ok_or_else(|| bad_device_dict_error(&data))?
+                .parse::<f64>()?;
+            let current = data.get("current")
+                .ok_or_else(|| bad_device_dict_error(&data))?
+                .parse::<f64>()?;
+            Ok(Device::Socket(Socket::new(voltage, current, on)))
+        }
+        "thermometer" => {
+            let temperature = data.get("temperature")
+                .ok_or_else(|| bad_device_dict_error(&data))?
+                .parse::<f64>()?;
+            Ok(Device::Thermometer(Thermometer::new(temperature)))
+        }
+        _ => Err(bad_device_dict_error(&data))
+    }
+}
+
+fn bad_device_dict_error(data: &HashMap<&str, &str>) -> HandleRequestError {
+    HandleRequestError::BadDeviceDict(format!("{:#?}", data))
 }
