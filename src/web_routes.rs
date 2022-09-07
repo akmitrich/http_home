@@ -27,6 +27,21 @@ pub async fn health_check(_: HttpRequest) -> impl Responder {
     HttpResponse::Ok().finish()
 }
 
+pub async fn room_list(_: HttpRequest, home: web::Data<SmartHome>) -> HttpResponse {
+    let home = home.read().await;
+    let room_list: Vec<_> = home.room_names_list().collect();
+    HttpResponse::Ok().json(room_list)
+}
+
+pub async fn device_list(req: HttpRequest, home: web::Data<SmartHome>) -> HttpResponse {
+    let room_name = req.match_info().get("room_name").unwrap_or("");
+    let home = home.read().await;
+    match home.device_names_list(room_name) {
+        Some(list) => HttpResponse::Ok().json(list),
+        None => HttpResponse::BadRequest().body(format!("Room not found {}", room_name)),
+    }
+}
+
 pub async fn update(req: HttpRequest, home: web::Data<SmartHome>) -> HttpResponse {
     let room_name = dbg!(req.match_info().get("room_name").unwrap_or_default());
     let device_name = dbg!(req.match_info().get("device_name").unwrap_or_default());
