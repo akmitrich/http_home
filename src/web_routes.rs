@@ -3,7 +3,7 @@ use querystring::querify;
 use std::collections::HashMap;
 use std::num::ParseFloatError;
 use thiserror::Error;
-use crate::smart_device::{Device, Socket, Thermometer};
+use crate::smart_device::{Device, Socket, Thermometer, DeviceDict};
 use crate::SmartHome;
 
 #[derive(Debug, Error)]
@@ -64,7 +64,7 @@ pub async fn add_device(req: HttpRequest, home: web::Data<SmartHome>) -> HttpRes
             Ok(new_device) => {
                 match home.add_device(room_name, device_name, new_device) {
                     Some(_) => HttpResponse::Ok().finish(),
-                    None => HttpResponse::BadRequest().body(format!("Room not found '{}'", room_name)),
+                    None => HttpResponse::BadRequest().body(format!("Room not found '{}' or duplicate device '{}'.", room_name, device_name)),
                 }
             }
             Err(e) => match e {
@@ -74,6 +74,25 @@ pub async fn add_device(req: HttpRequest, home: web::Data<SmartHome>) -> HttpRes
         }
     } else { // this code must be unreachable 
         HttpResponse::InternalServerError().body(format!("Unexpected request: '{:#?}'", req))
+    }
+}
+
+pub async fn remove_device(req: HttpRequest, home: web::Data<SmartHome>) -> HttpResponse {
+    let room_name = req.match_info().get("room_name").unwrap_or_default();
+    let device_name = req.match_info().get("device_name").unwrap_or_default();
+    let mut home = home.write().await;
+    match home.remove_device(room_name, device_name) {
+        Some(device) => HttpResponse::Ok().json(device.device_dict()),
+        None => HttpResponse::BadRequest().body(format!("Device not found for room/device '{room_name}/{device_name}'.")),
+    }
+}
+
+pub async fn remove_room(req: HttpRequest, home: web::Data<SmartHome>) -> HttpResponse {
+    let room_name = req.match_info().get("room_name").unwrap_or_default();
+    let mut home = home.write().await;
+    match home.remove_room(room_name) {
+        Some(_) => HttpResponse::Ok().body(format!("Removed room '{room_name}'.")),
+        None => HttpResponse::BadRequest().body(format!("Room not found '{room_name}'.")),
     }
 }
 
