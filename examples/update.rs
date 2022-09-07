@@ -1,15 +1,18 @@
-use http_home::smart_device::DeviceDict;
+use http_home::smart_device::{DeviceDict, Device, Socket};
 
 #[tokio::main]
 async fn main() {
-    let socket = http_home::smart_device::Socket::new(220., 5., true);
+    let socket = Socket::new(220., 5., true);
     let client = reqwest::Client::new();
-    let query: Vec<(String, String)> = http_home::smart_device::Device::Socket(socket)
+    println!("With correct request Server says: '{}'", show_update_request_to_server(&client, "R", "S", socket.into()).await);
+    println!("But when request is incorrect Server says: '{}'", show_update_request_to_server(&client, "No room", "No device", Device::Unknown).await);
+}
+
+async fn show_update_request_to_server(client: &reqwest::Client, room_name: &str, device_name: &str, device: Device) -> String {
+    let query: Vec<(String, String)> = device
         .device_dict()
         .into_iter()
         .collect();
-    let room_name = "R";
-    let device_name = "S";
     let resp = client
         .post(format!(
             "http://127.0.0.1:4083/update/{room_name}/{device_name}"
@@ -19,5 +22,7 @@ async fn main() {
         .send()
         .await
         .expect("Error: request failed");
-    println!("{:#?}", resp);
+    println!("Response: {:#?}\n", resp);
+
+    resp.text().await.unwrap()
 }

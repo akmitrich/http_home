@@ -17,6 +17,10 @@ impl Home {
         }
     }
 
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
     pub fn room_names_list(&self) -> impl Iterator<Item = &String> {
         self.rooms.keys()
     }
