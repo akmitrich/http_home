@@ -39,6 +39,7 @@ pub fn run(listener: TcpListener, home: home::Home) -> std::io::Result<Server> {
                 web::post().to(web_routes::update),
             )
             .route("/report", web::get().to(web_routes::report))
+            .route("/{room_name}/{device_name}", web::get().to(web_routes::get_device))
             .app_data(web::Data::clone(&smart_home))
     })
     .listen(listener)?

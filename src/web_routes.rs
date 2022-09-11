@@ -61,6 +61,19 @@ pub async fn add_room(req: HttpRequest, home: web::Data<SmartHome>) -> HttpRespo
     }
 }
 
+pub async fn get_device(req: HttpRequest, home: web::Data<SmartHome>) -> HttpResponse {
+    let room_name = req.match_info().get("room_name").unwrap_or_default();
+    let device_name = req.match_info().get("device_name").unwrap_or_default();
+    let home = home.read().await;
+    match home.get_device_by_path(room_name, device_name) {
+        Some(device) => {
+            HttpResponse::Ok()
+                .json(device.device_dict())
+        }
+        None => HttpResponse::BadRequest().body(format!("Device not found at {room_name}/{device_name}")),
+    }
+}
+
 pub async fn add_device(req: HttpRequest, home: web::Data<SmartHome>) -> HttpResponse {
     let room_name = req.match_info().get("room_name").unwrap_or_default();
     if let Some(device_name) = req.match_info().get("device_name") {
